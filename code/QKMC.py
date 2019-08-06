@@ -10,21 +10,14 @@ import logging
 import numpy as np
 import random
 
-import numpy as np
 from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
 from qiskit.tools import parallel_map
 from qiskit.tools.events import TextProgressBar
-from qiskit.aqua import aqua_globals
 from qiskit.aqua.algorithms import QuantumAlgorithm
-from qiskit.aqua import AquaError, Pluggable, PluggableType, get_pluggable_class
-from qiskit.aqua.utils.dataset_helper import get_feature_dimension, get_num_classes
 from qiskit.aqua.utils import split_dataset_to_data_and_labels
 from qiskit.aqua.components.feature_maps.raw_feature_vector import RawFeatureVector
-from qiskit.aqua.circuits.statevector_circuit import StateVectorCircuit
 
 from qiskit import execute
-
-import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +83,13 @@ class QKMC(QuantumAlgorithm):
         stop = False
         count = 1
         while(not stop):
+            if (count>5):
+                print('Algorithm failed to converge: run again')
+                return cluster_assignments
             cluster_assignments, stop = self.iterate(cluster_assignments)
             print(count)
-            print(cluster_assignments)
+            #print(cluster_assignments)
+            #print()
             count+=1
         return cluster_assignments
         
@@ -109,7 +106,8 @@ class QKMC(QuantumAlgorithm):
             cluster_arrays[cluster].append(i)
         for i in range(len(cluster_arrays)):
             cluster_assignments.update({str(i): cluster_arrays[i]})
-        print(cluster_assignments)
+        #print(cluster_assignments)
+        #print()
         return cluster_assignments
     
     def iterate(self, cluster_assignments):
@@ -153,19 +151,34 @@ class QKMC(QuantumAlgorithm):
         return centroid
     
     def closest_cluster(self, x, centroids):
+        if (self.is_quantum):
+            quant = QKMC.closest_cluster_quantum(self.backend, x, centroids)
+            #classic = QKMC.closest_cluster_classical(x, centroids)
+            #if (quant != classic):
+                #print('Wrong')
+            return quant
+        else:
+            return QKMC.closest_cluster_classical(x, centroids)
+        
+    @staticmethod
+    def closest_cluster_classical(x, centroids):
         """
         Calculate closest centroid from a data point
         """
         distances = []
         for i in range(len(centroids)):
-            distances.append(self.calculate_squared_distance(x, centroids[i]))
+            distances.append(QKMC.classical_calculate_squared_distance(x, centroids[i]))
         return distances.index(min(distances))
     
-    def calculate_squared_distance(self, x, y):
-        if(self.is_quantum):
-            return QKMC.quantum_calculate_squared_distance(self.backend, x, y)
-        else:
-            return QKMC.classical_calculate_squared_distance(x, y)
+    @staticmethod
+    def closest_cluster_quantum(backend, x, centroids):
+        """
+        Calculate closest centroid from a data point
+        """
+        distances = []
+        for i in range(len(centroids)):
+            distances.append(QKMC.quantum_calculate_squared_distance(backend, x, centroids[i]))
+        return distances.index(min(distances))
     
     @staticmethod
     def classical_calculate_squared_distance(x, y):
@@ -187,7 +200,6 @@ class QKMC(QuantumAlgorithm):
         zerocircuit.h(q0)
         
         Y = np.array(Y)
-        X, Y = X*10, Y*10
         
         if(np.linalg.norm(Y)==0):
             return 1000000
@@ -223,6 +235,7 @@ class QKMC(QuantumAlgorithm):
         swapcircuit.cswap(q3, q0, q2[0])
         swapcircuit.h(q3)
         swapcircuit.measure(q3, c0)
-        result = execute(swapcircuit, backend, shots=40960).result()
-        squares = Z*((4*result.get_counts()['0']/40960.0)-2)/100
+        result = execute(swapcircuit, backend, shots=40000).result()
+        squares = Z*((4*result.get_counts()['0']/40000.0)-2)
+        #print('error ', abs(100*(squares - QKMC.classical_calculate_squared_distance(X, Y))/QKMC.classical_calculate_squared_distance(X, Y)), "%")
         return squares
