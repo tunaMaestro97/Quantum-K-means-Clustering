@@ -1,0 +1,23 @@
+This is pdfTeX, Version 3.14159265-2.6-1.40.20 (MiKTeX 2.9.7050 64-bit) (preloaded format=pdflatex 2019.7.26)  5 AUG 2019 14:20
+entering extended mode
+**"C:/Users/Arun Sarma/Documents/latex/IBMQMachineLearning.tex"
+("C:/Users/Arun Sarma/Documents/latex/IBMQMachineLearning.tex"
+LaTeX2e <2018-12-01>
+! TeX capacity exceeded, sorry [parameter stack size=10000].
+\pkgcls@debug #1->
+                  
+l.6 \usepackage{
+                amsmath}
+If you really absolutely need more capacity,
+you can ask a wizard to enlarge me.
+
+ 
+Here is how much of TeX's memory you used:
+ 8 strings out of 492895
+ 295 string characters out of 3121398
+ 100115 words of memory out of 3000000
+ 4023 multiletter control sequences out of 15000+200000
+ 3640 words of font info for 14 fonts, out of 3000000 for 9000
+ 1141 hyphenation exceptions out of 8191
+ 4288i,0n,10001p,128b,8s stack positions out of 5000i,500n,10000p,200000b,50000s
+!  ==> Fatal error occurred, no output PDF file produced!
