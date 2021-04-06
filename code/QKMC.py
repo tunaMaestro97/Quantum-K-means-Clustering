@@ -16,6 +16,7 @@ from qiskit.tools.events import TextProgressBar
 from qiskit.aqua.algorithms import QuantumAlgorithm
 from qiskit.aqua.utils import split_dataset_to_data_and_labels
 from qiskit.aqua.components.feature_maps.raw_feature_vector import RawFeatureVector
+from qiskit.aqua.components.feature_maps import SecondOrderExpansion
 
 from qiskit import execute
 
@@ -44,36 +45,31 @@ class QKMC(QuantumAlgorithm):
 
     BATCH_SIZE = 1000
     
-    def __init__(self, feature_dim, is_quantum, backend, test_dataset):
+    def __init__(self, feature_dim, is_quantum, backend, test_dataset, num_clusters=None):
         """
         K-means Clustering Classification Algorithm
         """
         super().__init__()
 
         self.test_dataset = None
-        self.class_to_label = None
-        self.label_to_class = None
         self.num_classes = None
         
         self.feature_dim = feature_dim
         self.is_quantum = is_quantum
         
-        self.setup_test_data(test_dataset)
+        if(num_clusters==None):
+            self.setup_test_data(test_dataset)
+        else:
+            self.test_dataset = test_dataset
+            self.num_clusters = num_clusters
         
         self.backend = backend
     def setup_test_data(self, test_dataset):
-        """Setup test data, if the data were there, they would be overwritten.
-        Args:
-            test_dataset (dict): test dataset.
         """
-        if test_dataset is not None:
-            if self.class_to_label is None:
-                logger.warning("The mapping from the class name to the label is missed, "
-                               "regenerate it but it might be mismatched to previous mapping.")
-                self.test_dataset, self.class_to_label = split_dataset_to_data_and_labels(test_dataset)
-            else:
-                self.test_dataset = split_dataset_to_data_and_labels(test_dataset, self.class_to_label)
-            self.num_clusters = len(list(self.class_to_label.keys()))
+        """
+        self.test_dataset, self.num_clusters = split_dataset_to_data_and_labels(test_dataset)
+        self.num_clusters = len(list(self.num_clusters.keys()))
+        self.test_dataset = self.test_dataset[0]
     
     def _run(self):
         """
@@ -83,11 +79,11 @@ class QKMC(QuantumAlgorithm):
         stop = False
         count = 1
         while(not stop):
-            if (count>5):
+            if (count>6):
                 print('Algorithm failed to converge: run again')
                 return cluster_assignments
             cluster_assignments, stop = self.iterate(cluster_assignments)
-            print(count)
+            #print(count)
             #print(cluster_assignments)
             #print()
             count+=1
@@ -101,13 +97,12 @@ class QKMC(QuantumAlgorithm):
         cluster_arrays = []
         for i in range(self.num_clusters):
             cluster_arrays.append([])
-        for i in self.test_dataset[0]:
+        for i in self.test_dataset:
             cluster = random.randint(0, self.num_clusters-1)
             cluster_arrays[cluster].append(i)
         for i in range(len(cluster_arrays)):
             cluster_assignments.update({str(i): cluster_arrays[i]})
         #print(cluster_assignments)
-        #print()
         return cluster_assignments
     
     def iterate(self, cluster_assignments):
@@ -118,7 +113,7 @@ class QKMC(QuantumAlgorithm):
         for i in range(self.num_clusters):
             cluster_arrays.append([])
             centroids.append(QKMC.calculate_centroid(self.feature_dim, cluster_assignments[str(i)]))
-        for i in self.test_dataset[0]:
+        for i in self.test_dataset:
             closest_cluster = self.closest_cluster(i, centroids)
             cluster_arrays[closest_cluster].append(i)
             if(stop):
@@ -190,19 +185,32 @@ class QKMC(QuantumAlgorithm):
         return squares
     
     @staticmethod
-    def quantum_calculate_squared_distance(backend, X, Y):
-        if(len(X) != len(Y)):
+    def quantum_calculate_squared_distance(backend, x, y):
+        if(len(x) != len(y)):
             raise ValueError("x and y must be of same length")
+            
+        X = []
+        Y = []
+        
+        for i in range(len(x)):
+            if (x[i]<y[i]):
+                X += [x[i]]
+                Y += [y[i]]
+            else:
+                Y += [x[i]]
+                X += [y[i]]
+            
+        X = np.array(x)
+        Y = np.array(y)
+        
+        if (np.linalg.norm(Y) == 0):
+            print('broken')
+            return 0
         #feature vector converter
         c0 = ClassicalRegister(1)
         q0 = QuantumRegister(1)
         zerocircuit = QuantumCircuit(q0)
         zerocircuit.h(q0)
-        
-        Y = np.array(Y)
-        
-        if(np.linalg.norm(Y)==0):
-            return 1000000
         
         fvc = RawFeatureVector(len(X))
         q1 = QuantumRegister(fvc.num_qubits)
@@ -235,7 +243,7 @@ class QKMC(QuantumAlgorithm):
         swapcircuit.cswap(q3, q0, q2[0])
         swapcircuit.h(q3)
         swapcircuit.measure(q3, c0)
-        result = execute(swapcircuit, backend, shots=40000).result()
-        squares = Z*((4*result.get_counts()['0']/40000.0)-2)
+        result = execute(swapcircuit, backend, shots=100000).result()
+        squares = Z*((4*result.get_counts()['0']/100000.0)-2)
         #print('error ', abs(100*(squares - QKMC.classical_calculate_squared_distance(X, Y))/QKMC.classical_calculate_squared_distance(X, Y)), "%")
         return squares
